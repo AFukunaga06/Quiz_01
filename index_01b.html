@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>小学生向け三択クイズ 80問</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#ffffff; --text:#111827; --muted:#6b7280; --brand:#1e3a8a; --ok:#1e3a8a; --ng:#1e3a8a; --shadow:0 8px 24px rgba(0,0,0,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif;}
+    .wrap{max-width:960px;margin:32px auto;padding:0 16px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .title{font-weight:800;font-size:clamp(16px,3.5vw,24px)}
+    .controls{display:flex;gap:8px;align-items:center}
+    button, .btn{appearance:none;border:0;border-radius:12px;padding:10px 14px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .btn-outline{background:#fff;color:var(--brand);border:2px solid var(--brand)}
+    .btn-ghost{background:transparent;color:var(--muted);box-shadow:none}
+    .card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:20px}
+    .meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;color:var(--muted);font-weight:700;margin:6px 0 14px}
+    .progress{width:100%;height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+    .bar{height:100%;width:0;background:var(--brand);transition:width .3s ease}
+    .question{font-size:clamp(18px,3.2vw,28px);font-weight:800;line-height:1.35;margin:12px 0 8px}
+    .choices{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+    .choice{border:2px solid #e5e7eb;background:#fff;border-radius:14px;padding:14px;font-size:18px;font-weight:700;text-align:left;cursor:pointer;transition:.2s;display:flex;gap:10px;align-items:center;color:#1e3a8a}
+    .choice:hover{transform:translateY(-1px)}
+    .choice.correct{border-color:var(--ok);background:#e0e7ff;color:#1e3a8a}
+    .choice.wrong{border-color:var(--ng);background:#f1f5f9;color:#1e3a8a}
+    .choice .label{display:inline-block;min-width:2.2em;text-align:center;padding:.2em .6em;border-radius:999px;background:#eef2ff;color:var(--brand);font-weight:900}
+    .feedback{min-height:28px;margin-top:6px;font-weight:800;color:#1e3a8a}
+    .nav{display:flex;gap:10px;justify-content:space-between;margin-top:14px}
+    .score{font-weight:900}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:8px}
+    .pill{border:1px solid #e5e7eb;border-radius:999px;padding:6px 0;text-align:center;font-weight:700;background:#fff;color:#1e3a8a}
+    footer{margin:26px 0;color:var(--muted);text-align:center}
+    @media (min-width:720px){.choices{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">🧠 小学生向けやさしい三択クイズ <span id="total"></span></div>
+      <div class="controls">
+        <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-weight:700"><input type="checkbox" id="shuffle"> ランダム</label>
+        <button id="restart" class="btn-outline">最初から</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="meta">
+        <div>問題 <span id="idx">1</span>/<span id="count">80</span></div>
+        <div class="score">正解：<span id="sc">0</span></div>
+      </div>
+      <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+
+      <div id="qtext" class="question">読み込み中…</div>
+      <div id="choices" class="choices"></div>
+      <div id="fb" class="feedback" aria-live="polite"></div>
+
+      <div class="nav">
+        <button id="prev" class="btn-ghost">← まえ</button>
+        <div style="display:flex;gap:8px">
+          <button id="showAnswer" class="btn-ghost">答えを見る</button>
+          <button id="next">つぎ →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <details>
+        <summary style="cursor:pointer;font-weight:800">一覧（どれを解いたか）</summary>
+        <div id="grid" class="grid" style="margin-top:12px"></div>
+      </details>
+    </div>
+
+    <footer>
+      © やさしい三択クイズ / キーボード: A/B/C で回答、←/→ で移動
+    </footer>
+  </div>
+
+<script>
+const QUESTIONS = [
+  // 1〜50（最初のリスト）
+  {q:"パンダの主な食べものは？", c:["にんじん","たけ","バナナ"], a:1},
+  {q:"カエルはどこでくらす動物？", c:["うみ","かわや田んぼ","もりの木の上"], a:1},
+  {q:"にほんで一ばんあついきせつは？", c:["なつ","はる","ふゆ"], a:0},
+  {q:"りんごの色はどれが多い？", c:["みどり","あか","きいろ"], a:1},
+  {q:"せんたくものをかわかすのは？", c:["かぜ","おゆ","つち"], a:0},
+  {q:"にんじんの色は？", c:["あお","あか","オレンジ"], a:2},
+  {q:"ねこが『ゴロゴロ』するのは？", c:["こわいとき","うれしいとき","おなかがすいたとき"], a:1},
+  {q:"すいえいをするときにつけるのは？", c:["スリッパ","ぼうしとゴーグル","マスク"], a:1},
+  {q:"たぬきのとなりにいるのは？（ことわざ『たぬきと○○』）", c:["きつね","ねこ","うさぎ"], a:0},
+  {q:"かたつむりがせおっているものは？", c:["たまご","かさ","から"], a:2},
+  {q:"クリスマスにくるのは？", c:["サンタさん","トナカイ","せんせい"], a:0},
+  {q:"たなばたで書くものは？", c:["おかね","ねがいごと","てがみ"], a:1},
+  {q:"かみを切るところは？", c:["パンやさん","びよういん","ほんやさん"], a:1},
+  {q:"すもうとりが着ている服は？", c:["ふんどし","ゆかた","せいふく"], a:0},
+  {q:"ねるときにかけるのは？", c:["カーテン","ふとん","タオル"], a:1},
+  {q:"ごはんを食べるときに使うのは？", c:["はさみ","はし","ペン"], a:1},
+  {q:"ピカチュウはなにタイプ？", c:["みず","でんき","ほのお"], a:1},
+  {q:"ぞうのはなが長いのはなぜ？", c:["かっこいいから","えさをとるため","つのをかくすため"], a:1},
+  {q:"『ありがとう』の反対の言葉は？", c:["ごめんなさい","さようなら","どういたしまして"], a:0},
+  {q:"にほんの首都は？", c:["おおさか","とうきょう","きょうと"], a:1},
+  {q:"カレーに入っていないのは？", c:["じゃがいも","にんじん","イチゴ"], a:2},
+  {q:"あめがふると出ることがあるものは？", c:["にじ","ほし","つき"], a:0},
+  {q:"たまごをうむ動物は？", c:["いぬ","にわとり","うま"], a:1},
+  {q:"いちばん長い川は？（日本）", c:["信濃川","利根川","木曽川"], a:0},
+  {q:"1日は何時間？", c:["10時間","24時間","30時間"], a:1},
+  {q:"『月』が出るのはいつ？", c:["よる","ひる","あさ"], a:0},
+  {q:"さかながすんでいるところは？", c:["もり","うみやかわ","そら"], a:1},
+  {q:"うさぎの耳は？", c:["みじかい","ながい","まるい"], a:1},
+  {q:"『わんわん』となく動物は？", c:["ねこ","いぬ","うし"], a:1},
+  {q:"えんぴつで書いた文字をけすものは？", c:["はさみ","けしゴム","えんぴつけずり"], a:1},
+  {q:"なつに食べたくなる冷たいものは？", c:["アイス","おでん","スープ"], a:0},
+  {q:"サッカーで使うボールは？", c:["四角い","丸い","三角"], a:1},
+  {q:"『おはよう』と言うのはいつ？", c:["よる","ひる","あさ"], a:2},
+  {q:"人がすむところは？", c:["いえ","くるま","木の上"], a:0},
+  {q:"りすがすきな食べ物は？", c:["どんぐり","にんじん","バナナ"], a:0},
+  {q:"クリスマスの木は？", c:["モミの木","サクラの木","カエデの木"], a:0},
+  {q:"『こいのぼり』をあげる日は？", c:["ひなまつり","こどもの日","おしょうがつ"], a:1},
+  {q:"おにぎりの中に入っていないものは？", c:["しゃけ","うめぼし","ケーキ"], a:2},
+  {q:"人のからだで『見える』ところは？", c:["はな","しんぞう","けつえき"], a:0},
+  {q:"空をとぶのが上手な動物は？", c:["うま","とり","ねこ"], a:1},
+  {q:"ひらがなはぜんぶで何文字？", c:["46文字","50文字","40文字"], a:0},
+  {q:"にほんの国旗の色は？", c:["あおとしろ","あかとしろ","あかとあお"], a:1},
+  {q:"つきに行った人がのったのは？", c:["じてんしゃ","ロケット","ひこうき"], a:1},
+  {q:"ふゆによくふるのは？", c:["あめ","ゆき","かぜ"], a:1},
+  {q:"どうぶつえんにいそうなのは？", c:["ライオン","タコ","クジラ"], a:0},
+  {q:"1年のさいしょの月は？", c:["1月","3月","12月"], a:0},
+  {q:"ごはんをたくのは？", c:["オーブン","すいはんき","フライパン"], a:1},
+  {q:"いちごのたねはどこにある？", c:["なか","そと","どこにもない"], a:1},
+  {q:"ピアノをひくときに使うのは？", c:["手","足","口"], a:0},
+  {q:"『おやすみなさい』と言うのは？", c:["ひる","よる","あさ"], a:1},
+  // 51〜80（追加の30問）
+  {q:"えんぴつをけずる道具は？", c:["けしゴム","ナイフ","えんぴつけずり"], a:2},
+  {q:"はがきを送るときに必要なのは？", c:["切手","スプーン","はし"], a:0},
+  {q:"花にとまってみつをすう虫は？", c:["あり","ちょうちょ","せみ"], a:1},
+  {q:"カタカナで書くのはどれ？", c:["いぬ","サッカー","やま"], a:1},
+  {q:"いちばん早く走れる動物は？", c:["チーター","ぞう","カメ"], a:0},
+  {q:"お金を入れてジュースを出す機械は？", c:["じどうはんばいき","コピーき","テレビ"], a:0},
+  {q:"『ひなまつり』は何月？", c:["3月","5月","12月"], a:0},
+  {q:"『お正月』に食べる料理は？", c:["カレー","おせち","ハンバーグ"], a:1},
+  {q:"『夏休み』はどの季節？", c:["ふゆ","なつ","あき"], a:1},
+  {q:"うまが走るところは？", c:["牧場","海の底","山の上"], a:0},
+  {q:"バスにのるときは何を払う？", c:["お金","はがき","ポイント"], a:0},
+  {q:"空からふる白いものは？", c:["ほし","ゆき","つち"], a:1},
+  {q:"木の上で休む小動物は？", c:["カエル","リス","ペンギン"], a:1},
+  {q:"『おすし』に使うごはんは？", c:["カレーライス","すしめし","チャーハン"], a:1},
+  {q:"学校で使う黒い板の名前は？", c:["ホワイトボード","黒板","じゅうたん"], a:1},
+  {q:"てんきのよい日に出るものは？", c:["かぜ","にじ","かげ"], a:2},
+  {q:"ピーマンの中は？", c:["からっぽ","水","あめ"], a:0},
+  {q:"さくらの花がさくのは？", c:["はる","なつ","ふゆ"], a:0},
+  {q:"どうぶつえんにいない生き物は？", c:["カバ","ゴリラ","クジラ"], a:2},
+  {q:"ケーキの上にのっているくだものは？", c:["イチゴ","タマネギ","ピーマン"], a:0},
+  {q:"ひこうきはどこをとぶ？", c:["海の中","空","地下"], a:1},
+  {q:"ふねはどこを進む？", c:["空","海","山"], a:1},
+  {q:"おふろに入るときに使うものは？", c:["タオル","かばん","えんぴつ"], a:0},
+  {q:"サルのすきな食べ物は？", c:["バナナ","にく","パン"], a:0},
+  {q:"牛乳はどこから出る？", c:["ぶた","うし","うま"], a:1},
+  {q:"1週間は何日？", c:["5日","6日","7日"], a:2},
+  {q:"海の水はどういう味？", c:["あまい","しょっぱい","からい"], a:1},
+  {q:"花火をするのはいつが多い？", c:["なつ","ふゆ","はる"], a:0},
+  {q:"うまれたばかりの鳥はどうする？", c:["たまごから出る","空をとぶ","走る"], a:0},
+  {q:"こどもの日には何をあげる？", c:["だんご","こいのぼり","おもち"], a:1}
+];
+
+// --- 状態 ---
+let order = [...QUESTIONS.keys()];
+let idx = 0;              // 現在の問題のインデックス（order基準）
+let score = 0;            // 正解数
+let answered = new Map(); // orderIndex -> {choice:0/1/2, correct:boolean}
+
+const $ = (s)=>document.querySelector(s);
+const qtext = $('#qtext');
+const choicesWrap = $('#choices');
+const scEl = $('#sc');
+const idxEl = $('#idx');
+const countEl = $('#count');
+const barEl = $('#bar');
+const fbEl = $('#fb');
+const restartBtn = $('#restart');
+const shuffleCb = $('#shuffle');
+const prevBtn = $('#prev');
+const nextBtn = $('#next');
+const showBtn = $('#showAnswer');
+const grid = $('#grid');
+$('#total').textContent = `（全${QUESTIONS.length}問）`;
+countEl.textContent = QUESTIONS.length;
+
+function shuffle(array){
+  for(let i=array.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[array[i],array[j]]=[array[j],array[i]]}
+}
+
+function renderGrid(){
+  grid.innerHTML = '';
+  order.forEach((_,i)=>{
+    const p = document.createElement('button');
+    p.className = 'pill';
+    p.textContent = i+1;
+    p.addEventListener('click',()=>{idx=i;renderQuestion()});
+    const st = answered.get(i);
+    if(st){p.style.borderColor = st.correct? 'var(--ok)':'var(--ng)';}
+    grid.appendChild(p);
+  })
+}
+
+function renderQuestion(){
+  const q = QUESTIONS[order[idx]];
+  idxEl.textContent = idx+1;
+  barEl.style.width = ((idx)/ (QUESTIONS.length-1))*100 + '%';
+  qtext.textContent = q.q;
+  fbEl.textContent = '';
+  fbEl.className = 'feedback';
+  choicesWrap.innerHTML = '';
+  const labels = ['A','B','C'];
+  q.c.forEach((text,i)=>{
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.innerHTML = `<span class="label">${labels[i]}</span> ${text}`;
+    btn.addEventListener('click',()=>select(i));
+    choicesWrap.appendChild(btn);
+  });
+  const st = answered.get(idx);
+  if(st){
+    markChoices(st.choice, q.a);
+    showFeedback(st.correct);
+  }
+  prevBtn.disabled = idx===0;
+  nextBtn.textContent = idx===QUESTIONS.length-1? '結果を見る →':'つぎ →';
+  renderGrid();
+}
+
+function markChoices(chosen, answer){
+  [...choicesWrap.children].forEach((el,i)=>{
+    el.classList.remove('correct','wrong');
+    if(i===answer) el.classList.add('correct');
+    if(i===chosen && chosen!==answer) el.classList.add('wrong');
+  });
+}
+
+function showFeedback(ok){
+  fbEl.textContent = ok? '✅ 正解！':'❌ ざんねん…';
+  fbEl.className = 'feedback ' + (ok? 'ok':'ng');
+}
+
+function select(i){
+  const q = QUESTIONS[order[idx]];
+  const ok = (i===q.a);
+  if(!answered.has(idx)){
+    if(ok) score++;
+    scEl.textContent = score;
+  }
+  answered.set(idx,{choice:i,correct:ok});
+  markChoices(i, q.a);
+  showFeedback(ok);
+}
+
+function next(){
+  if(idx < QUESTIONS.length-1){
+    idx++;
+    renderQuestion();
+  } else {
+    showResult();
+  }
+}
+
+function prev(){
+  if(idx>0){ idx--; renderQuestion(); }
+}
+
+function showAnswer(){
+  const q = QUESTIONS[order[idx]];
+  markChoices(q.a, q.a);
+  fbEl.textContent = `正解は ${['A','B','C'][q.a]} です`;
+  fbEl.className = 'feedback ok';
+}
+
+function showResult(){
+  const total = QUESTIONS.length;
+  const percent = Math.round((score/total)*100);
+  qtext.textContent = `おつかれさま！ 結果は ${score}/${total}（${percent}%）でした。`;
+  choicesWrap.innerHTML = '';
+  fbEl.textContent = 'もう一度やるには「最初から」を押してね。';
+  fbEl.className = 'feedback';
+}
+
+function reset(all=true){
+  score = 0; scEl.textContent = 0; idx = 0; answered.clear();
+  if(all){
+    order = [...QUESTIONS.keys()];
+    if(shuffleCb.checked) shuffle(order);
+  }
+  renderQuestion();
+}
+
+// キーボード操作
+window.addEventListener('keydown',(e)=>{
+  const key = e.key.toLowerCase();
+  if(key==='arrowright'){ next(); }
+  if(key==='arrowleft'){ prev(); }
+  if(['a','1'].includes(key)) select(0);
+  if(['b','2'].includes(key)) select(1);
+  if(['c','3'].includes(key)) select(2);
+});
+
+nextBtn.addEventListener('click', next);
+prevBtn.addEventListener('click', prev);
+showBtn.addEventListener('click', showAnswer);
+restartBtn.addEventListener('click', ()=>reset(true));
+shuffleCb.addEventListener('change', ()=>reset(true));
+
+// 初期表示
+reset(true);
+</script>
+</body>
+</html>
